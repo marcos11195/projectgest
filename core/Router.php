@@ -17,7 +17,7 @@ class Router
 
         $controllerName = !empty($segments[0])
             ? ucfirst($segments[0]) . 'Controller'
-            : 'HomeController';
+            : 'DashboardController';
 
         $method = $segments[1] ?? 'index';
         $params = array_slice($segments, 2);

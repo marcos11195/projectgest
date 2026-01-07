@@ -10,11 +10,11 @@ class UsuarioController extends Controller
 {
     public function index(): void
     {
-        $ususario = Usuario::all();
+        $usuario = Usuario::all();
         $this->view('usuario/index', [
             'titulo' => 'Gestión de Usuarios',
             'mensaje' => 'Bienvenido a la gestión de usuarios 🚀',
-            'usuarios' => $ususario
+            'usuarios' => $usuario
         ]);
     }
 
