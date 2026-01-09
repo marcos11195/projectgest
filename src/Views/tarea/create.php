@@ -25,11 +25,6 @@
         </div>
 
         <div class="mb-3">
-            <label class="form-label">Comentarios</label>
-            <textarea name="comentarios" class="form-control"></textarea>
-        </div>
-
-        <div class="mb-3">
             <label class="form-label">Estado</label>
             <select name="estado_id" class="form-select" required>
                 <?php foreach ($estados as $estado): ?>
@@ -38,7 +33,17 @@
                     </option>
                 <?php endforeach; ?>
             </select>
-            <small class="text-muted">El estado de la tarea influye en el estado del proyecto.</small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Asignar a usuario</label>
+            <select name="usuario_id" class="form-select">
+                <?php foreach ($usuarios as $u): ?>
+                    <option value="<?= $u->usuario_id ?>">
+                        <?= $u->nombre ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
         <button class="btn btn-success">Guardar tarea</button>

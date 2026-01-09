@@ -26,7 +26,7 @@ class AuthController extends Controller
             $_SESSION['user_email'] = $usuario->email;
 
             // Redirigir al dashboard de proyectos
-            header("Location: " . BASE_URL . "/proyecto");
+            header("Location: " . BASE_URL . "/dashboard");
             exit;
         }
 

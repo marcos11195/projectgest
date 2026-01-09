@@ -6,6 +6,7 @@ use Core\Controller;
 use App\Models\Tarea;
 use App\Models\Proyecto;
 use App\Models\Estado;
+use App\Models\Usuario;
 
 class TareaController extends Controller
 {
@@ -17,16 +18,6 @@ class TareaController extends Controller
         }
     }
 
-    private function getProyectoUsuario($proyecto_id)
-    {
-        return Proyecto::where('proyecto_id', $proyecto_id)
-            ->where('usuario_id', $_SESSION['user_id'])
-            ->first();
-    }
-
-    /**
-     * 🔥 NUEVO: Actualiza automáticamente el estado del proyecto
-     */
     private function actualizarEstadoProyecto($proyecto_id)
     {
         $proyecto = Proyecto::find($proyecto_id);
@@ -35,14 +26,12 @@ class TareaController extends Controller
 
         $total = Tarea::where('proyecto_id', $proyecto_id)->count();
         $completadas = Tarea::where('proyecto_id', $proyecto_id)
-            ->where('estado_id', 3) // ID del estado "Completada"
+            ->where('estado_id', 3)
             ->count();
 
         if ($total > 0 && $total === $completadas) {
-            // Todas completadas → proyecto finalizado
             $proyecto->update(['fecha_fin' => date('Y-m-d')]);
         } else {
-            // Hay tareas pendientes → proyecto en curso
             $proyecto->update(['fecha_fin' => null]);
         }
     }
@@ -51,11 +40,17 @@ class TareaController extends Controller
     {
         $this->checkAuth();
 
-        $proyecto = $this->getProyectoUsuario($proyecto_id);
+        $proyecto = Proyecto::find($proyecto_id);
 
-        if (!$proyecto) {
+        $esDueno = ($proyecto->usuario_id == $_SESSION['user_id']);
+        $esAsignado = Tarea::where('proyecto_id', $proyecto_id)
+            ->where('usuario_id', $_SESSION['user_id'])
+            ->exists();
+
+        if (!$esDueno && !$esAsignado) {
             die("No tienes acceso a este proyecto");
         }
+
 
         $tareas = Tarea::where('proyecto_id', $proyecto_id)
             ->orderBy('created_at', 'DESC')
@@ -68,57 +63,51 @@ class TareaController extends Controller
     {
         $this->checkAuth();
 
-        $proyecto = $this->getProyectoUsuario($proyecto_id);
+        $proyecto = Proyecto::where('proyecto_id', $proyecto_id)
+            ->where('usuario_id', $_SESSION['user_id'])
+            ->first();
 
-        if (!$proyecto) {
+        if (!$proyecto)
             die("No tienes acceso a este proyecto");
-        }
 
         $estados = Estado::all();
+        $usuarios = Usuario::all();
 
-        return $this->view('tarea/create', compact('proyecto', 'estados'));
+        return $this->view('tarea/create', compact('proyecto', 'estados', 'usuarios'));
     }
 
     public function store($proyecto_id)
     {
         $this->checkAuth();
 
-        $proyecto = $this->getProyectoUsuario($proyecto_id);
+        $proyecto = Proyecto::where('proyecto_id', $proyecto_id)
+            ->where('usuario_id', $_SESSION['user_id'])
+            ->first();
 
-        if (!$proyecto) {
+        if (!$proyecto)
             die("No tienes acceso a este proyecto");
-        }
 
-        try {
-            $titulo = trim($_POST['titulo'] ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            $comentarios = trim($_POST['comentarios'] ?? '');
-            $estado_id = $_POST['estado_id'] ?? null;
+        $titulo = trim($_POST['titulo'] ?? '');
+        $descripcion = trim($_POST['descripcion'] ?? '');
+        $estado_id = $_POST['estado_id'] ?? null;
+        $usuario_id = $_POST['usuario_id'] ?? null;
 
-            if (!$titulo) {
-                throw new \Exception("El título es obligatorio");
-            }
+        if (!$titulo)
+            die("El título es obligatorio");
 
-            Tarea::create([
-                'titulo' => $titulo,
-                'descripcion' => $descripcion,
-                'comentarios' => $comentarios,
-                'estado_id' => $estado_id,
-                'usuario_id' => $_SESSION['user_id'],
-                'proyecto_id' => $proyecto_id
-            ]);
+        Tarea::create([
+            'titulo' => $titulo,
+            'descripcion' => $descripcion,
+            'comentarios' => null,
+            'estado_id' => $estado_id,
+            'usuario_id' => $usuario_id,
+            'proyecto_id' => $proyecto_id
+        ]);
 
-            // 🔥 Actualizar estado del proyecto
-            $this->actualizarEstadoProyecto($proyecto_id);
+        $this->actualizarEstadoProyecto($proyecto_id);
 
-            header("Location: " . BASE_URL . "/tarea/index/$proyecto_id");
-            exit;
-
-        } catch (\Exception $e) {
-            $error = $e->getMessage();
-            $estados = Estado::all();
-            return $this->view('tarea/create', compact('error', 'proyecto', 'estados'));
-        }
+        header("Location: " . BASE_URL . "/tarea/index/$proyecto_id");
+        exit;
     }
 
     public function edit($tarea_id)
@@ -126,20 +115,22 @@ class TareaController extends Controller
         $this->checkAuth();
 
         $tarea = Tarea::find($tarea_id);
-
-        if (!$tarea) {
+        if (!$tarea)
             die("Tarea no encontrada");
-        }
 
-        $proyecto = $this->getProyectoUsuario($tarea->proyecto_id);
+        $proyecto = Proyecto::find($tarea->proyecto_id);
 
-        if (!$proyecto) {
-            die("No tienes acceso a esta tarea");
+        $esDueno = ($proyecto->usuario_id == $_SESSION['user_id']);
+        $esAsignado = ($tarea->usuario_id == $_SESSION['user_id']);
+
+        if (!$esDueno && !$esAsignado) {
+            die("No tienes permiso para editar esta tarea");
         }
 
         $estados = Estado::all();
+        $usuarios = Usuario::all();
 
-        return $this->view('tarea/edit', compact('tarea', 'proyecto', 'estados'));
+        return $this->view('tarea/edit', compact('tarea', 'proyecto', 'estados', 'usuarios', 'esDueno', 'esAsignado'));
     }
 
     public function update($tarea_id)
@@ -147,45 +138,44 @@ class TareaController extends Controller
         $this->checkAuth();
 
         $tarea = Tarea::find($tarea_id);
-
-        if (!$tarea) {
+        if (!$tarea)
             die("Tarea no encontrada");
+
+        $proyecto = Proyecto::find($tarea->proyecto_id);
+
+        $esDueno = ($proyecto->usuario_id == $_SESSION['user_id']);
+        $esAsignado = ($tarea->usuario_id == $_SESSION['user_id']);
+
+        if (!$esDueno && !$esAsignado) {
+            die("No tienes permiso para editar esta tarea");
         }
 
-        $proyecto = $this->getProyectoUsuario($tarea->proyecto_id);
+        $titulo = trim($_POST['titulo'] ?? '');
+        $descripcion = trim($_POST['descripcion'] ?? '');
+        $comentarios = trim($_POST['comentarios'] ?? '');
+        $estado_id = $_POST['estado_id'] ?? null;
+        $usuario_id = $_POST['usuario_id'] ?? null;
 
-        if (!$proyecto) {
-            die("No tienes acceso a esta tarea");
+        $data = [];
+
+        if ($esDueno) {
+            $data['titulo'] = $titulo;
+            $data['descripcion'] = $descripcion;
+            $data['usuario_id'] = $usuario_id;
         }
 
-        try {
-            $titulo = trim($_POST['titulo'] ?? '');
-            $descripcion = trim($_POST['descripcion'] ?? '');
-            $comentarios = trim($_POST['comentarios'] ?? '');
-            $estado_id = $_POST['estado_id'] ?? null;
-
-            if (!$titulo) {
-                throw new \Exception("El título es obligatorio");
-            }
-
-            $tarea->update([
-                'titulo' => $titulo,
-                'descripcion' => $descripcion,
-                'comentarios' => $comentarios,
-                'estado_id' => $estado_id
-            ]);
-
-            // 🔥 Actualizar estado del proyecto
-            $this->actualizarEstadoProyecto($proyecto->proyecto_id);
-
-            header("Location: " . BASE_URL . "/tarea/index/{$proyecto->proyecto_id}");
-            exit;
-
-        } catch (\Exception $e) {
-            $error = $e->getMessage();
-            $estados = Estado::all();
-            return $this->view('tarea/edit', compact('error', 'tarea', 'proyecto', 'estados'));
+        if ($esAsignado) {
+            $data['comentarios'] = $comentarios;
         }
+
+        $data['estado_id'] = $estado_id;
+
+        $tarea->update($data);
+
+        $this->actualizarEstadoProyecto($proyecto->proyecto_id);
+
+        header("Location: " . BASE_URL . "/tarea/index/{$proyecto->proyecto_id}");
+        exit;
     }
 
     public function delete($tarea_id)
@@ -193,20 +183,17 @@ class TareaController extends Controller
         $this->checkAuth();
 
         $tarea = Tarea::find($tarea_id);
-
-        if (!$tarea) {
+        if (!$tarea)
             die("Tarea no encontrada");
-        }
 
-        $proyecto = $this->getProyectoUsuario($tarea->proyecto_id);
+        $proyecto = Proyecto::find($tarea->proyecto_id);
 
-        if (!$proyecto) {
-            die("No tienes acceso a esta tarea");
+        if ($proyecto->usuario_id != $_SESSION['user_id']) {
+            die("Solo el dueño del proyecto puede eliminar tareas");
         }
 
         $tarea->delete();
 
-        // 🔥 Actualizar estado del proyecto
         $this->actualizarEstadoProyecto($proyecto->proyecto_id);
 
         header("Location: " . BASE_URL . "/tarea/index/{$proyecto->proyecto_id}");

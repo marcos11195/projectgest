@@ -18,13 +18,30 @@ class ProyectoController extends Controller
 
     public function index()
     {
-        $this->checkAuth();
+        if (empty($_SESSION['user_id'])) {
+            header("Location: " . BASE_URL . "/auth/login");
+            exit;
+        }
 
-        $proyectos = Proyecto::where('usuario_id', $_SESSION['user_id'])
-            ->orderBy('created_at', 'DESC')
+        $usuario_id = $_SESSION['user_id'];
+
+        // Proyectos creados por el usuario
+        $proyectosCreados = Proyecto::where('usuario_id', $usuario_id)
+            ->orderBy('fecha_inicio', 'DESC')
             ->get();
 
-        return $this->view('proyecto/index', compact('proyectos'));
+        // Proyectos donde participa (pero NO es dueño)
+        $proyectosParticipa = Proyecto::whereIn('proyecto_id', function ($q) use ($usuario_id) {
+            $q->select('proyecto_id')
+                ->from('tarea')
+                ->where('usuario_id', $usuario_id);
+        })
+            ->where('usuario_id', '!=', $usuario_id)
+            ->distinct()
+            ->orderBy('fecha_inicio', 'DESC')
+            ->get();
+
+        return $this->view('proyecto/index', compact('proyectosCreados', 'proyectosParticipa'));
     }
 
     public function create()

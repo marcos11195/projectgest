@@ -3,8 +3,8 @@
 namespace App\Controllers;
 
 use Core\Controller;
-use App\Models\Proyecto;
 use App\Models\Tarea;
+use App\Models\Proyecto;
 
 class DashboardController extends Controller
 {
@@ -15,18 +15,23 @@ class DashboardController extends Controller
             exit;
         }
 
-        $proyectos = Proyecto::where('usuario_id', $_SESSION['user_id'])
+        $usuario_id = $_SESSION['user_id'];
+
+        // Tareas asignadas al usuario
+        $tareasAsignadas = Tarea::where('usuario_id', $usuario_id)
             ->orderBy('created_at', 'DESC')
             ->get();
 
-        foreach ($proyectos as $p) {
-            $p->total_tareas = Tarea::where('proyecto_id', $p->proyecto_id)->count();
-            $p->tareas_completadas = Tarea::where('proyecto_id', $p->proyecto_id)
-                ->where('estado_id', 3)
-                ->count();
-            $p->tareas_pendientes = $p->total_tareas - $p->tareas_completadas;
-        }
+        // Proyectos donde el usuario participa (creador o asignado)
+        $proyectosParticipa = Proyecto::where('usuario_id', $usuario_id)
+            ->orWhereIn('proyecto_id', function ($q) use ($usuario_id) {
+                $q->select('proyecto_id')
+                    ->from('tarea')
+                    ->where('usuario_id', $usuario_id);
+            })
+            ->distinct()
+            ->get();
 
-        return $this->view('dashboard/index', compact('proyectos'));
+        return $this->view('dashboard/index', compact('tareasAsignadas', 'proyectosParticipa'));
     }
 }

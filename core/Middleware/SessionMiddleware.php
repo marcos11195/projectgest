@@ -9,7 +9,7 @@ class SessionMiddleware
      * Controladores públicos (sin login)
      */
     protected array $publicControllers = [
-        'HomeController',
+        'DashboardController',
         'AuthController'
     ];
 
