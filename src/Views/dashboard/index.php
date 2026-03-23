@@ -36,7 +36,7 @@
                             <?php endif; ?>
                         </td>
 
-                        <!-- ⭐⭐⭐ AQUI VA EL VER MÁS / VER MENOS ⭐⭐⭐ -->
+                   
                         <td class="comentario-wrap">
                             <div class="comentario-corto" id="comentario-<?= $t->tarea_id ?>">
                                 <?= nl2br(htmlspecialchars($t->comentarios)) ?>
@@ -49,7 +49,7 @@
                                 </span>
                             <?php endif; ?>
                         </td>
-                        <!-- ⭐⭐⭐ FIN DEL BLOQUE ⭐⭐⭐ -->
+                       
 
                         <td>
                             <a href="<?= BASE_URL ?>/tarea/edit/<?= $t->tarea_id ?>" class="btn btn-primary btn-sm">
